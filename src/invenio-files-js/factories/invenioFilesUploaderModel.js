@@ -207,6 +207,10 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
                 });
                 $rootScope.$emit('invenio.uploader.upload.next.call');
               });
+        }).catch((response) =>{
+          $rootScope.$emit(
+            'invenio.uploader.upload.file.errored', response
+          );
         });
     } else {
       // Just put it in the pending

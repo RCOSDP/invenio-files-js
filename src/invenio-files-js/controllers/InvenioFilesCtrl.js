@@ -64,7 +64,7 @@ function InvenioFilesCtrl($rootScope, $scope, $q, $timeout,
       InvenioFilesAPI.request({
         method: 'POST',
         url: vm.invenioFilesEndpoints.initialization,
-        data: {},
+        data: vm.invenioFilesArgs.data != undefined ? vm.invenioFilesArgs.data : {},
         headers: (vm.invenioFilesArgs.headers !== undefined) ?
           vm.invenioFilesArgs.headers : {}
       }).then(function success(response) {
