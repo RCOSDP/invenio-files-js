@@ -207,10 +207,6 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
                 });
                 $rootScope.$emit('invenio.uploader.upload.next.call');
               });
-        }).catch((response) =>{
-          $rootScope.$emit(
-            'invenio.uploader.upload.file.errored', response
-          );
         });
     } else {
       // Just put it in the pending
@@ -258,6 +254,10 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
             multipartUpload: true,
             successCallback: that.postChunkUploadProcess
           });
+        }).catch((response) =>{
+          $rootScope.$emit(
+            'invenio.uploader.upload.file.errored', response
+          );
         });
     }
     return deferred.promise;
@@ -275,6 +275,7 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
       deferred.resolve(response);
     }, function(error) {
       deferred.reject(error);
+      $rootScope.$emit('invenio.uploader.upload.file.errored', {config :{data :{file: file}}});
     });
     return deferred.promise;
   };
