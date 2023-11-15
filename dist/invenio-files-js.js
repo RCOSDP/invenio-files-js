@@ -62,7 +62,7 @@ function InvenioFilesCtrl($rootScope, $scope, $q, $timeout,
       InvenioFilesAPI.request({
         method: 'POST',
         url: vm.invenioFilesEndpoints.initialization,
-        data: {},
+        data: vm.invenioFilesArgs.data != undefined ? vm.invenioFilesArgs.data : {},
         headers: (vm.invenioFilesArgs.headers !== undefined) ?
           vm.invenioFilesArgs.headers : {}
       }).then(function success(response) {
@@ -624,6 +624,10 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
             multipartUpload: true,
             successCallback: that.postChunkUploadProcess
           });
+        }).catch((response) =>{
+          $rootScope.$emit(
+            'invenio.uploader.upload.file.errored', response
+          );
         });
     }
     return deferred.promise;
@@ -639,6 +643,7 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
       deferred.resolve(response);
     }, function(error) {
       deferred.reject(error);
+      $rootScope.$emit('invenio.uploader.upload.file.errored', {config :{data :{file: file}}});
     });
     return deferred.promise;
   };
