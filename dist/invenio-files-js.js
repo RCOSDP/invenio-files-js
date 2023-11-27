@@ -208,11 +208,14 @@ function InvenioFilesCtrl($rootScope, $scope, $q, $timeout,
 
   function fileUploadedError(evnt, data) {
     var index = findInFiles(
-      data.config.data.file !== undefined ?
+      data.config.data?.file !== undefined ?
         data.config.data.file.key : data.config.data.key
     );
     if (index > -1) {
       vm.files[index].errored = true;
+      vm.files[index].multipart = fileReducer(vm.files[index]).multipart;
+      vm.files[index].links = data.config.url;
+      // Delete processing state
       delete vm.files[index].processing;
       $scope.$broadcast('invenio.uploader.error', data);
     }
@@ -544,12 +547,12 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
     var that = this;
     if (that.getUploads().length < (that.args.max_request_slots || 3)) {
       that._upload(file)
-        .then(function(_obj) {
-          var upload = InvenioFilesAPI
-            .upload(_obj.uploadArgs, _obj.multipartUpload);
-          $rootScope.$emit('invenio.uploader.upload.file.init', file);
-          that.addUpload(upload);
-          upload.then(
+      .then(function(_obj) {
+        var upload = InvenioFilesAPI.upload(_obj.uploadArgs, _obj.multipartUpload);
+        $rootScope.$emit('invenio.uploader.upload.file.init', file);
+        that.addUpload(upload);
+
+        upload.then(
               function(response) {
                 var params = (response.data.links === undefined) ? _obj.uploadArgs.url : response;
                 _obj.successCallback
@@ -560,6 +563,8 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
                         'invenio.uploader.upload.file.uploaded',
                         response
                       );
+                      $rootScope.$emit('invenio.uploader.upload.completed');
+
                     }, function(response) {
                       $rootScope.$emit(
                         'invenio.uploader.upload.file.errored', response
@@ -579,15 +584,15 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
                   'invenio.uploader.upload.file.progress', params
                 );
               }
-            )
-            .finally(function(evt) {
-                that.removeUpload(this);
-                _.delay(function() {
-                  that.next();
-                });
-                $rootScope.$emit('invenio.uploader.upload.next.call');
-              });
+        )
+        .finally(function(evt) {
+          that.removeUpload(this);
+          _.delay(function() {
+            that.next();
+          });
+          $rootScope.$emit('invenio.uploader.upload.next.call');
         });
+      });
     } else {
       that.pushToPending(file);
       $rootScope.$emit('invenio.uploader.upload.file.pending', file);
@@ -614,21 +619,28 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
       );
       var _args = that._prepareRequest(file, 'POST');
       _args.data.file = file;
-      that._requestUploadID(_args)
-        .then(function(response) {
-          var _requestArgs = that._prepareRequest(file, 'PUT');
-          _requestArgs.data.file = file;
-          _requestArgs.url = response.data.links.self;
-          deferred.resolve({
-            uploadArgs: _requestArgs,
-            multipartUpload: true,
-            successCallback: that.postChunkUploadProcess
-          });
-        }).catch((response) =>{
-          $rootScope.$emit(
-            'invenio.uploader.upload.file.errored', response
-          );
+      let checksumArgs = {};
+      that.verifyCheckSum(file)
+      .then((_checksumArgs) =>{
+        if (_checksumArgs.resumeSizeUrl){
+          checksumArgs = _checksumArgs
+          return  {data : {links : {self : file.links} }};
+        }
+        return that._requestUploadID(_args);
+      }).then((response) =>{
+        var _requestArgs = that._prepareRequest(file, 'PUT');
+        _requestArgs.data.file = file;
+        _requestArgs.url = response.data.links.self
+        deferred.resolve({
+          uploadArgs: {... _requestArgs , ...checksumArgs},
+          multipartUpload: true,
+          successCallback: that.postChunkUploadProcess
         });
+      }).catch((response) =>{
+        $rootScope.$emit(
+          'invenio.uploader.upload.file.errored', response
+        );
+      });
     }
     return deferred.promise;
   };
@@ -643,7 +655,8 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
       deferred.resolve(response);
     }, function(error) {
       deferred.reject(error);
-      $rootScope.$emit('invenio.uploader.upload.file.errored', {config :{data :{file: file}}});
+      error.config.data = {file: file}
+      $rootScope.$emit('invenio.uploader.upload.file.errored', error);
     });
     return deferred.promise;
   };
@@ -678,6 +691,39 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
     this.queue = [];
   };
 
+  Uploader.prototype.verifyCheckSum = async function (file , index){
+    
+    const args = {}
+    // on resume
+    if(file.links){
+      responce = await fetch(file.links)
+      listpart= await responce.json();
+      for(part of listpart.parts) {
+        const slicedfile = file.slice(part.start_byte , part.end_byte);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", await slicedfile.arrayBuffer());
+        const hashArray = Array.from(new Uint8Array(hashBuffer)); 
+        const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join(""); 
+        if (hashHex !== part.checksum){
+          const error={config:{data:{file:file}}};
+          return Promise.reject(error);
+        }
+
+        let params = {
+          file: file,
+          progress: parseInt(100.0 * part.end_byte / file.size, 10)
+        };
+        $rootScope.$emit(
+          'invenio.uploader.upload.file.progress', params
+        );
+        
+        const lastPartURL = file.links + '&last_part_size=true';
+        args.resumeSizeUrl = lastPartURL;
+        args.resumeSizeResponseReader = function(data) {return data.end_byte;}
+      }
+
+    };
+    return args;
+  }
 
   return Uploader;
 }
