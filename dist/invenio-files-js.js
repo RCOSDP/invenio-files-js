@@ -215,6 +215,7 @@ function InvenioFilesCtrl($rootScope, $scope, $q, $timeout,
       vm.files[index].errored = true;
       vm.files[index].multipart = fileReducer(vm.files[index]).multipart;
       vm.files[index].links = data.config.url;
+      vm.files[index].size = data.config.data?.file?.size;
       // Delete processing state
       delete vm.files[index].processing;
       $scope.$broadcast('invenio.uploader.error', data);
@@ -696,14 +697,35 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
     const args = {}
     // on resume
     if(file.links){
-      responce = await fetch(file.links)
-      listpart= await responce.json();
+      const responce = await fetch(file.links)
+      const err = {config:{data :{file : file}}}
+
+      if (!responce.ok){
+        alert(document.getElementById('msg_the_upload_id_is_invalid').value);
+        throw err;
+      }
+
+      const listpart= await responce.json();
+      if (listpart.completed){
+        alert(document.getElementById('msg_the_upload_id_is_invalid').value);
+        throw err;
+      }
+      
+      exhoustedDay = new Date(listpart.created) // now
+      const expiresDay = Number(document.getElementById('const_multipart_expires').value.split(' days')[0]);
+      exhoustedDay.setDate(new Date().getDate() + expiresDay)
+      if (exhoustedDay < new Date()){
+        alert(document.getElementById('msg_the_upload_id_is_expired_for_retry').value);
+        throw err;
+      }
+
       for(part of listpart.parts) {
         const slicedfile = file.slice(part.start_byte , part.end_byte);
         const hashBuffer = await crypto.subtle.digest("SHA-256", await slicedfile.arrayBuffer());
         const hashArray = Array.from(new Uint8Array(hashBuffer)); 
         const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join(""); 
         if (hashHex !== part.checksum){
+          alert(document.findViewById('msg_defferent_file').value);
           const error={config:{data:{file:file}}};
           return Promise.reject(error);
         }
@@ -715,11 +737,16 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
         $rootScope.$emit(
           'invenio.uploader.upload.file.progress', params
         );
-        
+        file.progress = params.progress;
+
         const lastPartURL = file.links + '&last_part_size=true';
+        
         args.resumeSizeUrl = lastPartURL;
         args.resumeSizeResponseReader = function(data) {return data.end_byte;}
       }
+      delete file.errored;
+      delete file.resuming;
+      delete file.processing;
 
     };
     return args;
