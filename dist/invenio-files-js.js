@@ -700,8 +700,8 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
       const responce = await fetch(file.links)
       const err = {config:{data :{file : file}}}
 
-      if (!responce.ok){
-        alert(document.getElementById('msg_the_upload_id_is_invalid').value);
+      if (responce.status !== 200){
+        alert(responce.statusText);
         throw err;
       }
 
@@ -711,7 +711,7 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
         throw err;
       }
       
-      exhoustedDay = new Date(listpart.created) // now
+      exhoustedDay = new Date(listpart.created)
       const expiresDay = Number(document.getElementById('const_multipart_expires').value.split(' days')[0]);
       exhoustedDay.setDate(new Date().getDate() + expiresDay)
       if (exhoustedDay < new Date()){
@@ -730,24 +730,12 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
           return Promise.reject(error);
         }
 
-        let params = {
-          file: file,
-          progress: parseInt(100.0 * part.end_byte / file.size, 10)
-        };
-        $rootScope.$emit(
-          'invenio.uploader.upload.file.progress', params
-        );
-        file.progress = params.progress;
-
         const lastPartURL = file.links + '&last_part_size=true';
         
         args.resumeSizeUrl = lastPartURL;
         args.resumeSizeResponseReader = function(data) {return data.end_byte;}
       }
-      delete file.errored;
       delete file.resuming;
-      delete file.processing;
-
     };
     return args;
   }
