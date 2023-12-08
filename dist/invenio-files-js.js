@@ -641,6 +641,7 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
         $rootScope.$emit(
           'invenio.uploader.upload.file.errored', response
         );
+        deferred.reject(response);
       });
     }
     return deferred.promise;
