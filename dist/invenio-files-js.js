@@ -701,15 +701,20 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
       const responce = await fetch(file.links)
       const err = {config:{data :{file : file}}}
 
-      if (responce.status !== 200){
-        alert(responce.statusText);
-        throw err;
+      delete file.resuming;
+      if (responce.status === 404){
+        return args; //when initialization error occered
       }
 
+      if (responce.status !== 200){
+        alert(responce.statusText);
+        return Promise.reject(err);
+      }
+      
       const listpart= await responce.json();
       if (listpart.completed){
         alert(document.getElementById('msg_the_upload_id_is_invalid').value);
-        throw err;
+        return Promise.reject(err);
       }
       
       exhoustedDay = new Date(listpart.created)
@@ -717,7 +722,7 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
       exhoustedDay.setDate(new Date().getDate() + expiresDay)
       if (exhoustedDay < new Date()){
         alert(document.getElementById('msg_the_upload_id_is_expired_for_retry').value);
-        throw err;
+        return Promise.reject(err);
       }
 
       for(part of listpart.parts) {
@@ -727,8 +732,7 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
         const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join(""); 
         if (hashHex !== part.checksum){
           alert(document.findViewById('msg_defferent_file').value);
-          const error={config:{data:{file:file}}};
-          return Promise.reject(error);
+          return Promise.reject(err);
         }
 
         const lastPartURL = file.links + '&last_part_size=true';
@@ -736,7 +740,6 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
         args.resumeSizeUrl = lastPartURL;
         args.resumeSizeResponseReader = function(data) {return data.end_byte;}
       }
-      delete file.resuming;
     };
     return args;
   }
