@@ -708,14 +708,12 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
 
       if (responce.status !== 200){
         alert(responce.statusText);
-        $rootScope.$emit('invenio.uploader.upload.file.errored', error);
         return Promise.reject(err);
       }
       
       const listpart= await responce.json();
       if (listpart.completed){
         alert(document.getElementById('msg_the_upload_id_is_invalid').value);
-        $rootScope.$emit('invenio.uploader.upload.file.errored', error);
         return Promise.reject(err);
       }
       
