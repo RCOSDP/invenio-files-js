@@ -718,8 +718,8 @@ function InvenioFilesUploaderModel($rootScope, $q, InvenioFilesAPI) {
       }
       
       exhoustedDay = new Date(listpart.created)
-      const expiresDay = Number(document.getElementById('const_multipart_expires').value.split(' days')[0]);
-      exhoustedDay.setDate(new Date().getDate() + expiresDay)
+      const expiresDay = Number(document.getElementById('const_multipart_expires').value.split(' ')[0]);
+      exhoustedDay.setDate(exhoustedDay.getDate() + expiresDay)
       if (exhoustedDay < new Date()){
         alert(document.getElementById('msg_the_upload_id_is_expired_for_retry').value);
         return Promise.reject(err);
